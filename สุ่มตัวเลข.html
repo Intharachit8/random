@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>สุ่มตัวเลข</title>
+<link href="https://fonts.googleapis.com/css2?family=Prompt:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#eef1fb;--surface:#ffffff;--ink:#1c2455;--muted:#5d6492;--line:#c9d0ee;--accent:#f2b01e;--accent-ink:#1c2455;--err:#b3261e;--ball:#1c2455;--ball-ink:#ffffff;
+color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#121634;--surface:#1b2150;--ink:#eef0ff;--muted:#a3aadb;--line:#343c7a;--accent:#f2b01e;--accent-ink:#1c2455;--err:#ff8a80;--ball:#f2b01e;--ball-ink:#1c2455;color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#121634;--surface:#1b2150;--ink:#eef0ff;--muted:#a3aadb;--line:#343c7a;--accent:#f2b01e;--accent-ink:#1c2455;--err:#ff8a80;--ball:#f2b01e;--ball-ink:#1c2455;color-scheme:dark}
+*{box-sizing:border-box}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:"Prompt","Noto Sans Thai",system-ui,sans-serif;line-height:1.6}
+main{max-width:520px;margin:0 auto;padding:32px 20px 48px}
+h1{font-size:2rem;font-weight:600;margin:0 0 4px;letter-spacing:-.01em}
+.sub{margin:0 0 24px;color:var(--muted)}
+form{background:var(--surface);border:1px solid var(--line);border-radius:20px;padding:20px;display:grid;gap:16px}
+.row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+label{display:grid;gap:6px;font-weight:500;font-size:.95rem}
+input[type=number]{width:100%;font:inherit;font-size:1.25rem;font-weight:500;padding:10px 12px;color:var(--ink);background:var(--bg);border:1.5px solid var(--line);border-radius:12px}
+input[type=number]:focus-visible,button:focus-visible,input[type=checkbox]:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+.check{display:flex;align-items:center;gap:10px;font-weight:400;cursor:pointer}
+.check input{width:20px;height:20px;accent-color:var(--ink)}
+.go{font:inherit;font-size:1.15rem;font-weight:600;padding:14px;border:0;border-radius:14px;background:var(--accent);color:var(--accent-ink);cursor:pointer}
+.go:active{transform:translateY(1px)}
+.err{min-height:1.5em;margin:0;color:var(--err);font-size:.95rem}
+.result{margin-top:28px}
+.result[hidden]{display:none}
+.head{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:12px}
+.head h2{margin:0;font-size:1.1rem;font-weight:500}
+.copy{font:inherit;font-size:.9rem;padding:6px 14px;border-radius:999px;border:1.5px solid var(--line);background:transparent;color:var(--ink);cursor:pointer}
+.balls{display:flex;flex-wrap:wrap;gap:10px}
+.ball{min-width:56px;height:56px;padding:0 12px;border-radius:999px;display:grid;place-items:center;background:var(--ball);color:var(--ball-ink);font-weight:600;font-size:1.2rem;font-variant-numeric:tabular-nums;animation:pop .35s cubic-bezier(.2,1.4,.4,1) backwards;animation-delay:calc(var(--i)*35ms)}
+@keyframes pop{from{transform:scale(.3) rotate(-20deg);opacity:0}}
+@media (prefers-reduced-motion:reduce){.ball{animation:none}}
+</style>
+</head>
+<body>
+<main>
+  <h1>สุ่มตัวเลข</h1>
+  <p class="sub">กำหนดช่วงตัวเลขและจำนวนที่ต้องการ แล้วกดสุ่ม</p>
+  <form id="f" novalidate>
+    <div class="row">
+      <label>ตั้งแต่<input id="min" type="number" inputmode="numeric" value="1" step="1"></label>
+      <label>ถึง<input id="max" type="number" inputmode="numeric" value="100" step="1"></label>
+    </div>
+    <label>จำนวนเลขที่ต้องการสุ่ม<input id="count" type="number" inputmode="numeric" value="5" min="1" max="1000" step="1"></label>
+    <label class="check"><input id="uniq" type="checkbox" checked>ไม่ให้เลขซ้ำกัน</label>
+    <label class="check"><input id="sort" type="checkbox">เรียงจากน้อยไปมาก</label>
+    <p class="err" id="err" role="alert"></p>
+    <button class="go" type="submit">สุ่มเลข</button>
+  </form>
+  <section class="result" id="res" hidden aria-live="polite">
+    <div class="head"><h2 id="title">ผลการสุ่ม</h2><button class="copy" id="copy" type="button">คัดลอก</button></div>
+    <div class="balls" id="balls"></div>
+  </section>
+</main>
+<script>
+const $=id=>document.getElementById(id);
+let last=[];
+function rnd(n){ // uniform integer in [0,n)
+  const a=new Uint32Array(1), lim=Math.floor(4294967296/n)*n;
+  do{crypto.getRandomValues(a)}while(a[0]>=lim);
+  return a[0]%n;
+}
+$('f').addEventListener('submit',e=>{
+  e.preventDefault();
+  const lo=Number($('min').value), hi=Number($('max').value), n=Number($('count').value);
+  const uniq=$('uniq').checked, err=$('err');
+  err.textContent='';
+  if(![lo,hi,n].every(Number.isInteger)){err.textContent='กรุณากรอกจำนวนเต็มให้ครบทุกช่อง';return}
+  if(lo>hi){err.textContent='ค่าเริ่มต้นต้องไม่มากกว่าค่าสิ้นสุด';return}
+  if(Math.abs(lo)>1e9||Math.abs(hi)>1e9){err.textContent='ช่วงตัวเลขต้องอยู่ระหว่าง -1,000,000,000 ถึง 1,000,000,000';return}
+  if(n<1||n>1000){err.textContent='จำนวนที่สุ่มต้องอยู่ระหว่าง 1 ถึง 1,000';return}
+  const size=hi-lo+1;
+  if(uniq&&n>size){err.textContent='ช่วงนี้มีเลขแค่ '+size.toLocaleString('th-TH')+' ตัว สุ่มแบบไม่ซ้ำ '+n.toLocaleString('th-TH')+' ตัวไม่ได้ ลองลดจำนวน หรือเอาเครื่องหมายไม่ให้เลขซ้ำออก';return}
+  let out=[];
+  if(!uniq){for(let i=0;i<n;i++)out.push(lo+rnd(size))}
+  else if(size<=100000){
+    const pool=Array.from({length:size},(_,i)=>lo+i);
+    for(let i=0;i<n;i++){const j=i+rnd(size-i);[pool[i],pool[j]]=[pool[j],pool[i]];out.push(pool[i])}
+  }else{const s=new Set();while(s.size<n)s.add(lo+rnd(size));out=[...s]}
+  if($('sort').checked)out.sort((a,b)=>a-b);
+  last=out;
+  $('balls').innerHTML=out.map((v,i)=>'<span class="ball" style="--i:'+Math.min(i,30)+'">'+v.toLocaleString('en-US')+'</span>').join('');
+  $('title').textContent='สุ่มได้ '+n.toLocaleString('th-TH')+' ตัว';
+  $('copy').textContent='คัดลอก';
+  $('res').hidden=false;
+  $('res').scrollIntoView({behavior:'smooth',block:'nearest'});
+});
+$('copy').addEventListener('click',async()=>{
+  const t=last.join(', ');
+  try{await navigator.clipboard.writeText(t);$('copy').textContent='คัดลอกแล้ว'}
+  catch(_){const r=document.createRange();r.selectNodeContents($('balls'));const s=getSelection();s.removeAllRanges();s.addRange(r);$('copy').textContent='เลือกข้อความแล้ว'}
+});
+</script>
+</body>
+</html>
